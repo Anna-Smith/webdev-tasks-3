@@ -21,29 +21,61 @@ describe('Flow', function () {
             assert(callback.calledWith(null, null));
         });
         it('should serial call each function once', function (done) {
-            flowTest(done, 'serial', ['assert(fn1.calledOnce, "fn1 called once");',
-                'assert(fn2.calledOnce, "fn2 called once");',
-                'assert(fn2.calledAfter(fn1), "fn2 called after fn1");']);
+            const fn1 = sinon.spy(createAsyncFunc({data: 1}));
+            const fn2 = sinon.spy(createAsyncFunc());
+            const callback = () => {
+                assert(fn1.calledOnce, 'fn1 called once');
+                assert(fn2.calledOnce, 'fn2 called once');
+                assert(fn2.calledAfter(fn1), 'fn2 called after fn1');
+                done();
+            };
+            flow.serial([fn1, fn2], callback);
         });
         it('should call callback after functions', function (done) {
-            flowTest(done, 'serial', ['assert(callback.calledOnce, "callback called once");',
-                'assert(callback.calledAfter(fn2), "callback called after fn2");']);
+            const fn1 = createAsyncFunc({data: 1});
+            const fn2 = sinon.spy(createAsyncFunc());
+            const callback = sinon.spy(() => {
+                assert(callback.calledOnce, 'callback called once');
+                assert(callback.calledAfter(fn2), 'callback called after fn2');
+                done();
+            });
+            flow.serial([fn1, fn2], callback);
         });
         it('should pass result of the function to the next', function (done) {
-            flowTest(done, 'serial', ['assert(fn2.calledWith(1), "fn2 gets result");']);
+            const fn1 = createAsyncFunc({data: 1});
+            const fn2 = sinon.spy(createAsyncFunc());
+            const callback = () => {
+                assert(fn2.calledWith(1), 'fn2 gets result');
+                done();
+            };
+            flow.serial([fn1, fn2], callback);
         });
         it('should call callback with the result', function (done) {
-            flowTest(done, 'serial',
-                ['assert(callback.calledWith(null, 1), "callback gets result");']);
+            const fn1 = createAsyncFunc({data: 1});
+            const fn2 = createAsyncFunc();
+            const callback = sinon.spy(() => {
+                assert(callback.calledWith(null, 1), 'callback gets result');
+                done();
+            });
+            flow.serial([fn1, fn2], callback);
         });
         it('should stop the execution of the functions if an error occurs', function (done) {
-            flowTest(done, 'serial', ['assert(fn2.callCount.should.equal(0), "fn2 never called");'],
-                new Error('err'));
+            const fn1 = createAsyncFunc({error: new Error('err'), data: 1});
+            const fn2 = sinon.spy(createAsyncFunc());
+            const callback = () => {
+                assert(fn2.callCount.should.equal(0), 'fn2 never called');
+                done();
+            };
+            flow.serial([fn1, fn2], callback);
         });
         it('should call callback with an error', function (done) {
-            flowTest(done, 'serial',
-                ['assert(callback.calledWith(Error("err")), "callback called with error");'],
-                new Error('err'));
+            const fn1 = createAsyncFunc({error: new Error('err'), data: 1});
+            const fn2 = createAsyncFunc();
+            const callback = sinon.spy(() => {
+                assert(callback.calledWith(Error('err')), 'callback called with error');
+                done();
+            });
+            flow.serial([fn1, fn2], callback);
         });
     });
     describe('parallel', function () {
@@ -54,50 +86,102 @@ describe('Flow', function () {
             assert(callback.calledWith(null, []), 'callback called with no error and [] data');
         });
         it('should call each function once', function (done) {
-            flowTest(done, 'parallel', ['assert(fn1.calledOnce, "fn1 called once");',
-                'assert(fn2.calledOnce, "fn2 called once");']);
+            const fn1 = sinon.spy(createAsyncFunc({data: 1}));
+            const fn2 = sinon.spy(createAsyncFunc({data: 2}));
+            const callback = () => {
+                assert(fn1.calledOnce, 'fn1 called once');
+                assert(fn2.calledOnce, 'fn2 called once');
+                done();
+            };
+            flow.parallel([fn1, fn2], callback);
+        });
+        it('should parallel call functions', function (done) {
+            const fn1 = sinon.spy(createAsyncFunc({data: 1}));
+            const fn2 = sinon.spy(createAsyncFunc({data: 2}));
+            const callback = () => {
+                done();
+            };
+            flow.parallel([fn1, fn2], callback);
+            if (!callback.called) {
+                assert(fn1.called, 'fn1 called');
+                assert(fn2.called, 'fn2 called');
+            }
         });
         it('should call callback after functions', function (done) {
-            flowTest(done, 'parallel', ['assert(callback.calledOnce, "callback called once");',
-                'assert(callback.calledAfter(fn1), "callback called after fn1");',
-                'assert(callback.calledAfter(fn2), "callback called after fn2");']);
+            const fn1 = sinon.spy(createAsyncFunc({data: 1}));
+            const fn2 = sinon.spy(createAsyncFunc({data: 2}));
+            const callback = sinon.spy(() => {
+                assert(callback.calledOnce, 'callback called once');
+                assert(callback.calledAfter(fn1), 'callback called after fn1');
+                assert(callback.calledAfter(fn2), 'callback called after fn2');
+                done();
+            });
+            flow.parallel([fn1, fn2], callback);
         });
         it('should call callback with the result of the functions', function (done) {
-            flowTest(done, 'parallel',
-                ['assert(callback.calledWith(null, [1, 2]), "callback called with data");']);
+            const fn1 = createAsyncFunc({data: 1});
+            const fn2 = createAsyncFunc({data: 2});
+            const callback = sinon.spy(() => {
+                assert(callback.calledWith(null, [1, 2]), 'callback called with data');
+                done();
+            });
+            flow.parallel([fn1, fn2], callback);
         });
         it('should call callback with an error', function (done) {
-            flowTest(done, 'parallel',
-                ['assert(callback.calledWith(Error("err"), []), "callback called with error");'],
-                new Error('err'));
+            const fn1 = createAsyncFunc({data: 'some data 1'});
+            const fn2 = createAsyncFunc({data: 'some data 2', error: new Error('err')});
+            const callback = sinon.spy(() => {
+                assert(callback.calledWith(Error('err'), []), 'callback called with error');
+                done();
+            });
+            flow.parallel([fn1, fn2], callback);
         });
     });
     describe('map', function () {
-        it('should call callback when the values are not passed', function () {
+        it('should call callback when the values are not passed', function (done) {
             const fn = sinon.spy();
             const callback = sinon.spy();
             flow.map([], fn, callback);
             assert(callback.calledOnce, 'callback called once');
             assert(callback.calledWith(null, []), 'callback called with null error and [] data');
             assert(fn.callCount.should.equal(0), 'fn shouldn\'t be called');
+            done();
         });
         it('should call function with each value', function (done) {
-            flowTest(done, 'map', ['assert(fn.calledThrice, "fn called thrice");',
-                'assert(fn.firstCall.calledWith(1), "fn called with first value");',
-                'assert(fn.secondCall.calledWith(2), "fn called with second value");',
-                'assert(fn.thirdCall.calledWith(3), "fn called with third value");']);
+            const fn = sinon.spy(createAsyncFunc());
+            const callback = () => {
+                assert(fn.calledThrice, 'fn called thrice');
+                assert(fn.firstCall.calledWith(1), 'fn called with first value');
+                assert(fn.secondCall.calledWith(2), 'fn called with second value');
+                assert(fn.thirdCall.calledWith(3), 'fn called with third value');
+                done();
+            };
+            flow.map([1, 2, 3], fn, callback);
         });
         it('should call callback after function', function (done) {
-            flowTest(done, 'map', ['assert(callback.calledOnce, "callback called once");']);
+            const fn = createAsyncFunc();
+            const callback = sinon.spy(() => {
+                assert(callback.calledOnce, 'callback called once');
+                done();
+            });
+            flow.map([1, 2, 3], fn, callback);
         });
         it('should call callback with the result', function (done) {
-            flowTest(done, 'map',
-                ['assert(callback.calledWith(null, [1, 2, 3]), "callback called with results");']);
+            const fn = createAsyncFunc();
+            const callback = sinon.spy(() => {
+                assert(callback.calledWith(null, [1, 2, 3]), 'callback called with results');
+                done();
+            });
+            flow.map([1, 2, 3], fn, callback);
         });
         it('should call callback with an error', function (done) {
-            flowTest(done, 'map', ['assert(callback.calledOnce, "callback called once");',
-                    'assert(callback.calledWith(Error("err"), []), "callback called with error");'],
-                new Error('err'));
+            const fn = createAsyncFunc({failedValue: 2, error: new Error('err')});
+            const callback = sinon.spy(() => {
+                assert(callback.calledOnce, 'callback called once');
+                assert(callback.calledWith(Error('err'), []), 'callback called with error');
+                done();
+            });
+            flow.map([1, 2, 3], fn, callback);
         });
     });
 });
@@ -110,12 +194,10 @@ function createAsyncFunc() {
         {failedValue: Args.ANY | Args.Optional}
     ], arguments);
     if (args.data) {
-        //serial or parallel
         return (cb) => {
             setTimeout(cb, args.delay, args.error, args.data);
         };
     } else if (args.failedValue) {
-        //map
         return (value, cb) => {
             if (value === args.failedValue) {
                 setTimeout(cb, args.delay, args.error, value);
@@ -124,37 +206,8 @@ function createAsyncFunc() {
             }
         };
     } else {
-        //serial or map
         return (data, cb) => {
             setTimeout(cb, args.delay, args.error, data);
         };
-    }
-}
-
-function flowTest(done, testFunc, asserts, error) {
-    error = error || null;
-    const callback = sinon.spy(() => {
-        asserts.forEach(assertStr => {
-            eval(assertStr);
-        });
-        done();
-    });
-    let fn1;
-    let fn2;
-    switch (testFunc) {
-        case 'serial':
-            fn1 = sinon.spy(createAsyncFunc({data: 1, error: error}));
-            fn2 = sinon.spy(createAsyncFunc());
-            flow.serial([fn1, fn2], callback);
-            break;
-        case 'parallel':
-            fn1 = sinon.spy(createAsyncFunc({data: 1}));
-            fn2 = sinon.spy(createAsyncFunc({data: 2, error: error}));
-            flow.parallel([fn1, fn2], callback);
-            break;
-        case 'map':
-            const fn = sinon.spy(createAsyncFunc({failedValue: 2, error: error}));
-            flow.map([1, 2, 3], fn, callback);
-            break;
     }
 }
